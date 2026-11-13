@@ -32,6 +32,17 @@ HELP = ("GAQ read-only bot\n/status  live latch, EA, account snapshot\n/report  
 BLOCKED = {"/resume", "/trade", "/buy", "/sell", "/start_live", "/live", "/clear", "/reset", "/close", "/stop", "/risk", "/lot"}
 
 
+RELAY_MAX_AGE_H = 6                                                     # never replay old history (e.g. after a cache reset)
+
+
+def _age_h(iso: str) -> float:
+    from datetime import datetime, timezone
+    try:
+        return (datetime.now(timezone.utc) - datetime.fromisoformat(iso)).total_seconds() / 3600
+    except ValueError:
+        return 1e9
+
+
 def decrypt(blob: dict, key_b64: str) -> dict:
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
     key = base64.b64decode(key_b64)
@@ -101,7 +112,7 @@ def main() -> int:
         api(token, "getUpdates", offset=upd[-1]["update_id"] + 1, timeout=0)   # acknowledge
     if chat:
         for a in snap.get("alerts", []):
-            if not a.get("delivered_direct") and a["id"] not in relayed:
+            if not a.get("delivered_direct") and a["id"] not in relayed and _age_h(a.get("time_utc", "")) <= RELAY_MAX_AGE_H:
                 if send(token, chat, f"GAQ {a['level']} (relayed): {a['text']}"):
                     relayed.add(a["id"])
                     n_rel += 1
