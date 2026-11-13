@@ -1,0 +1,39 @@
+name: telegram-runner
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: telegram-runner
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: status
+          path: status
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --quiet cryptography==44.0.0
+      - uses: actions/cache/restore@v4
+        with:
+          path: .relay_state
+          key: relay-state-${{ github.run_id }}
+          restore-keys: relay-state-
+      - run: python runner.py
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          RELAY_KEY: ${{ secrets.RELAY_KEY }}
+      - uses: actions/cache/save@v4
+        if: always()
+        with:
+          path: .relay_state
+          key: relay-state-${{ github.run_id }}
